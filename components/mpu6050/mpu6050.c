@@ -1,5 +1,6 @@
 #include "mpu6050.h"
 #include <stdlib.h>
+#include "freertos/task.h"
 
 #define MPU6050_PWR_MGMT_1   0x6B
 #define MPU6050_ACCEL_XOUT_H 0x3B
@@ -32,15 +33,29 @@ static esp_err_t read_bytes(i2c_port_t port, uint8_t reg, uint8_t *data, size_t 
 
 mpu6050_handle_t mpu6050_create(i2c_port_t port)
 {
+    if ((unsigned)port >= I2C_NUM_MAX) return NULL;
     mpu6050_handle_t dev = calloc(1, sizeof(mpu6050_t));
+    if (!dev) return NULL;
     dev->i2c_port = port;
     return dev;
 }
 
 esp_err_t mpu6050_init(mpu6050_handle_t dev)
 {
-    /* Wake up sensor */
-    return write_byte(dev->i2c_port, MPU6050_PWR_MGMT_1, 0x00);
+    if (!dev) return ESP_ERR_INVALID_ARG;
+    uint8_t identity;
+    esp_err_t ret = read_bytes(dev->i2c_port, 0x75, &identity, 1);
+    if (ret != ESP_OK) return ret;
+    if (identity != 0x68) return ESP_ERR_NOT_FOUND;
+    ret = write_byte(dev->i2c_port, MPU6050_PWR_MGMT_1, 0x01);
+    if (ret != ESP_OK) return ret;
+    vTaskDelay(pdMS_TO_TICKS(100));
+    // Explicitly select the scales used by the sender.
+    ret = write_byte(dev->i2c_port, 0x1B, 0x00); // +/-250 degrees/second
+    if (ret != ESP_OK) return ret;
+    ret = write_byte(dev->i2c_port, 0x1C, 0x00); // +/-2 g
+    if (ret != ESP_OK) return ret;
+    return write_byte(dev->i2c_port, 0x1A, 0x03); // Digital low-pass filter
 }
 
 esp_err_t mpu6050_get_motion(
@@ -52,6 +67,7 @@ esp_err_t mpu6050_get_motion(
         int16_t *gy,
         int16_t *gz)
 {
+    if (!dev || !ax || !ay || !az || !gx || !gy || !gz) return ESP_ERR_INVALID_ARG;
     uint8_t data[14];
 
     esp_err_t ret = read_bytes(

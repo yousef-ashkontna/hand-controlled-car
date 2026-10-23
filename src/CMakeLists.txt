@@ -6,7 +6,7 @@ if(firmware_role STREQUAL "sender")
 endif()
 
 idf_component_register(
-    SRCS "${firmware_role}/main.c"
-    INCLUDE_DIRS "."
+    SRCS "${firmware_role}/main.c" "common/car_control.c" "common/car_radio.c"
+    INCLUDE_DIRS "." "../include"
     PRIV_REQUIRES ${app_dependencies}
 )

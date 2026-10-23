@@ -34,4 +34,28 @@ Some assigned ESP32 pins are boot-strapping pins. If the board fails to boot wit
 
 ## Pairing
 
-Obtain the receiver's station MAC from your board tooling or temporarily log it after Wi-Fi initialization with `esp_wifi_get_mac(WIFI_IF_STA, mac)`. Update `receiver_mac` in the sender. Both firmwares explicitly select Wi-Fi channel 1. ESP-NOW peer encryption is disabled in the sender.
+1. Build and flash each firmware without a pairing file. At 115200 baud it prints its **Station MAC**. The receiver keeps the motors stopped and its servos at their neutral commands.
+2. From the project root, run the following command with the actual sender and receiver station MAC addresses (the values below are examples):
+
+```sh
+python scripts/configure_pairing.py --sender 02:12:34:56:78:9A --receiver 02:12:34:56:78:9B
+```
+
+3. The script creates ignored `include/pairing_config.h` with both addresses and random 16-byte PMK and LMK values. Keep this file local. It refuses to overwrite existing keys unless `--force` is supplied.
+4. Run `pio run -t clean`, then rebuild and flash both boards from this project. Cleaning ensures the new optional header is picked up after a previous unconfigured build. Both boards must have the same keys. Clean, rebuild, and reflash both whenever keys change.
+5. Confirm each board reports the expected station MAC. A role/MAC mismatch or missing configuration disables ESP-NOW operation.
+
+Both peers use encrypted unicast on channel 1. The receiver also checks source and destination MACs, exact payload length, protocol version, touch state, and angle ranges before accepting a measurement. The project uses [ESP-IDF's ESP-NOW peer encryption](https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32/api-reference/network/esp_now.html#security).
+
+## Hardware verification
+
+With the wheels raised, check the following before driving:
+
+- Confirm both boards boot with peripherals connected and sensor readings recover after a disconnected I2C cable.
+- Check hand orientation, neutral motor stop, forward/reverse motion, and left/right steering.
+- Confirm the touch servo moves between 0 and 90 degrees; the tilt servo follows pitch, with level at 90 degrees.
+- Switch off the sender, disconnect its sensor, or interrupt the radio link. Verify motors stop after the last valid packet ages 500 ms, allowing the 20 ms control polling interval and scheduler latency.
+- Verify stale or malformed traffic cannot keep the motors moving. Restore valid traffic and check recovery.
+- Confirm servo endpoints do not bind mechanically, and verify supply stability with motors and servos running.
+
+On timeout, the touch servo returns to 0 degrees and the tilt servo to 90 degrees. Software tests and successful builds do not substitute for these physical checks.

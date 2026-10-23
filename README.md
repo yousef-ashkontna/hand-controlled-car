@@ -2,7 +2,7 @@
 
 ESP32 firmware for a gesture-controlled robot car. A handheld MPU6050 sensor measures tilt and sends data over ESP-NOW; a second ESP32 controls two DC motors and two servos using FreeRTOS tasks.
 
-> **Development status:** the current sender and receiver use different packet layouts and cannot communicate correctly yet. Both targets can be built independently. See [known issues](docs/known-issues.md) before hardware testing.
+> Both boards use the same versioned packet format and encrypted ESP-NOW pairing. Configure your two station MAC addresses before flashing for operation. Unconfigured firmware prints its station MAC and leaves the car stopped.
 
 ## System overview
 
@@ -16,7 +16,7 @@ flowchart LR
     R --> Servos[Touch and tilt servos]
 ```
 
-The sender estimates roll and pitch using a complementary filter and attempts transmission every 20 ms. The receiver implements differential drive mixing, a 5-degree dead zone, servo control, and a task intended to stop the motors after 500 ms without packets. These are implemented behaviors, not a claim of end-to-end hardware validation.
+The sender estimates roll and pitch using a complementary filter and attempts transmission every 20 ms. The receiver implements differential drive mixing, a 5-degree dead zone, servo control, and a single actuator task that stops the motors when the newest valid packet reaches 500 ms old. The tilt servo follows pitch from -90 to +90 degrees. Host regression tests cover packet validation and timeout logic; physical hardware validation is still required.
 
 ## Hardware
 
@@ -49,9 +49,9 @@ pio run -e receiver
 
 ## Configure and flash
 
-1. Review the [protocol mismatch and remaining work](docs/known-issues.md). Resolve the packet format before expecting the boards to work together.
-2. Set `receiver_mac` in `src/sender/main.c` to the receiver's **Wi-Fi station MAC address**. The checked-in value is the original project's device address, not an automatically discovered peer.
-3. Connect one board at a time, or select its serial port explicitly. Replace `COM5` and `COM6` below with your actual ports.
+1. Follow the [pairing instructions](docs/hardware.md#pairing) to obtain both station MAC addresses and generate local keys.
+2. Run `pio run -t clean`, then rebuild and flash **both** boards using the same generated pairing configuration.
+3. Connect one board at a time, or select its serial port explicitly. Replace COM5 and COM6 below with your actual ports.
 
 ```sh
 pio device list
@@ -70,12 +70,15 @@ hand-controlled-car/
 |-- .github/workflows/build.yml   # Build both firmware environments
 |-- components/mpu6050/          # Local ESP-IDF sensor component
 |-- docs/
-|   |-- hardware.md             # Wiring and power notes
-|   |-- architecture.md         # Tasks, control flow, packet formats
-|   `-- known-issues.md          # Current limitations and validation checklist
+|   |-- hardware.md             # Wiring, pairing, and hardware checks
+|   `-- architecture.md         # Tasks, control flow, and wire protocol
+|-- include/                    # Shared interfaces; ignored local pairing keys
+|-- scripts/                    # Pairing setup and host test runner
+|-- tests/                      # Protocol, timeout, and sensor regression tests
 |-- src/
+|   |-- common/                 # Shared packet, control, and radio code
 |   |-- sender/main.c           # Sensor sampling and ESP-NOW transmission
-|   |-- receiver/main.c         # Motor, servo, and failsafe tasks
+|   |-- receiver/main.c         # One actuator task including the failsafe
 |   `-- CMakeLists.txt          # Select the firmware entry point
 |-- CMakeLists.txt              # ESP-IDF project
 |-- platformio.ini             # Shared settings and board environments
@@ -85,6 +88,12 @@ hand-controlled-car/
 
 ## Development
 
-Read the [architecture](docs/architecture.md) and [contribution guide](CONTRIBUTING.md). GitHub Actions builds both firmware environments on pushes and pull requests. A successful build does not verify wiring, radio interoperability, or physical stop behavior.
+Read the [architecture](docs/architecture.md) and [contribution guide](CONTRIBUTING.md). Run the host tests with Python and GCC or Clang:
+
+```sh
+python scripts/test_host.py
+```
+
+GitHub Actions runs these regression tests and builds both firmware environments on pushes and pull requests. A successful build does not verify wiring, radio interoperability, or physical stop behavior.
 
 No software license has been selected for this repository.
