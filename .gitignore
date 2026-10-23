@@ -1,0 +1,25 @@
+# Build output and local tooling
+.pio/
+.tools/
+build/
+managed_components/
+__pycache__/
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Generated ESP-IDF configuration (defaults are versioned)
+sdkconfig
+sdkconfig.*
+!sdkconfig.defaults
+!sdkconfig.defaults.*
+dependencies.lock
+
+# Local credentials and overrides
+.env
+.env.*
+*.pem
+*.key

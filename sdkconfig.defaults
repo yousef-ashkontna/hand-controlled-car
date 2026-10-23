@@ -1,0 +1,2 @@
+# Preserve the flash size configured in the original project.
+CONFIG_ESPTOOLPY_FLASHSIZE_2MB=y
